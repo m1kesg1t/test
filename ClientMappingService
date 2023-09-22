@@ -1,0 +1,12 @@
+4.7	ClientMappingService Output to Database Queue 
+ClientMappingService (CMS) is responsible for populating the Client Update queues for MSP and Bank of America (BAC).  For MSP clients MspWsi interacts with the MSP Update Queue to perform the updates in MSP via a web service call to MSP.  Similarly, for Bank of America, the BACXmlFileGen app creates an XML file containing updates to send via secure FTP to BAC.  (See the schema, 4.7.4.1 XSD File Link.)
+CMS operates the same for clients mapping PM events to MSP or BAC; however, a completely different code path is executed (see Figure 1 in red). 
+Figure 1.  BAC Code Path
+
+Information in the Client Update BAC database queuing tables is processed, once BACXmlFileGen process begins.  
+Active Batch is scheduled to run BACXmlFileGen generation at specific times beginning at 9:30 a.m., etc. (see 4.7.4	CMS Output to Client Update BAC (Bank of America – BAC).  BACXmlFileGen compiles the information that is being staged in the Client Update BAC DB into an XML file. Active Batch then sends the file to the BAC system of record which BAC uses to maintain the current status of the loan via FTP, based on the presence of a trigger file (Done.txt).  
+MSP client and BAC behavioral differences are explained in the following sections
+All client mappings are pulled into CMS, and kept in cache. The mappings determine whether and how Desktop activity should be reflected in the client system.  As messages arrive at CMS, these are checked against the mappings, and the client update queue is populated accordingly. 
+for information about how mappings configured by the field values for the Client Update tables are loaded. 
+4.7.1	Important: Changes in the Update Queue for the 2.16 release 
+The following section describes the MSP Update Queue, including changes that are being made with the new BPA release.  Existing functionality is preserved with this transition.  Also see 4.7.9	Mapping Loader Program for information about how mappings configured by the field values for the Client Update tables are loaded.
