@@ -2,11 +2,27 @@
 ClientMappingService (CMS) is responsible for populating the Client Update queues for MSP and Bank of America (BAC).  For MSP clients MspWsi interacts with the MSP Update Queue to perform the updates in MSP via a web service call to MSP.  Similarly, for Bank of America, the BACXmlFileGen app creates an XML file containing updates to send via secure FTP to BAC.  (See the schema, 4.7.4.1 XSD File Link.)
 CMS operates the same for clients mapping PM events to MSP or BAC; however, a completely different code path is executed (see Figure 1 in red). 
 Figure 1.  BAC Code Path
-
 Information in the Client Update BAC database queuing tables is processed, once BACXmlFileGen process begins.  
 Active Batch is scheduled to run BACXmlFileGen generation at specific times beginning at 9:30 a.m., etc. (see 4.7.4	CMS Output to Client Update BAC (Bank of America – BAC).  BACXmlFileGen compiles the information that is being staged in the Client Update BAC DB into an XML file. Active Batch then sends the file to the BAC system of record which BAC uses to maintain the current status of the loan via FTP, based on the presence of a trigger file (Done.txt).  
 MSP client and BAC behavioral differences are explained in the following sections
 All client mappings are pulled into CMS, and kept in cache. The mappings determine whether and how Desktop activity should be reflected in the client system.  As messages arrive at CMS, these are checked against the mappings, and the client update queue is populated accordingly. 
 for information about how mappings configured by the field values for the Client Update tables are loaded. 
+
 4.7.1	Important: Changes in the Update Queue for the 2.16 release 
 The following section describes the MSP Update Queue, including changes that are being made with the new BPA release.  Existing functionality is preserved with this transition.  Also see 4.7.9	Mapping Loader Program for information about how mappings configured by the field values for the Client Update tables are loaded.
+
+4.7.2	New DAL and other Architectural Advantages in CMS for 2.16
+ClientMappingService's Data Access Layer (DAL) architecture is entirely different with the new queue structure for the 2.16 release. See Figure 2.
+The new architecture uses a Repository development pattern, or template. The data model is comprised of entity classes which are a schema reflection of the ClientUpdate database.  Therefore this new DAL layer is referred to as the ClientUpdateEntities Data Model using the Microsoft.Data.Objects Library
+The Business Logic Layer (BLL) only communicates with the Repository as shown, not the DAL. The Repository performs all of the functions that the DAL formerly did.  Also see 4.7.2.2	Repository and 4.7.2.3	New DAL for additional information. 
+
+4.7.2.1	Message Flow and the ClientUpdate Entities Model
+As always, CMS is a WCF service, hosted on a Windows service.  XML messages that arrive are managed and mapped by the Windows and WCF services.  The message is validated and converted to determine the type of event that is fired in the BLL (step 3).  Based on the information in the XML message, one or two classes are used to process the message (ETL Screen or ETL Queue).  
+With the new architecture, the static class in the DAL has been replaced with the Entity model as described.  This is a data model that mirrors the DAL functionality, building the classes, etc., needed in reading and writing to the structure tables.  The model has all of the methods and accesses, creating classes that reflect tables and Stored Procs used with the ClientUpdate DB.
+The ClientUpdate DB is essentially converted to .Net code, taking the schema, converting to .Net code, turning the schema into classes so that it's possible to reference items using an object, rather than SQL statements.
+
+The Repository relies on ETLioTransfer, a new class that is used, so that when instantiating a new instance of the class, one of the queue types is passed in (ETL Screen or ETL Queue). E.g., if ETL Screen is passed into the ‘Insert into queue’ method, a request is made for a new instance of the ETLioTransfer object.  The request includes the source object as ETL Screen.   
+Further, ETLiOTransfer object is a class that implements an implicit operator. This allows the base class methods derived from IRepository to pass a common object that can reflect and represent that object in many different data class structures/objects. Example: Send in an XML message to CMS for a StepUpdate. The message is transformed to an ETLScreen class, thus ETLiOTransfer accepts the ETLScreen in its constructor and exposes that ETLScreen instance as an Instance of TBLMSPWsiLoanMaster, TBLMSPUpdateQueue, TBLMSPUpdateField, etc.
+See the Repository Class model diagram.
+This shows that the Repository class inherits from the IRepository interface.  The interface provides a generic means to implement all of the available methods that are needed.  The classes abstracted from this provide a base class to work from that is customized to work for different concrete types.  
+The Repository can never get business logic leaked into to, as it only is allowed to instantiate the ETLioTransfer object with its corresponding methods.  All of the activity can grow and scale as needed for requirements of the BLL, just accessing one object and associated methods.
